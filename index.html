@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Telemetria — Relatório de Infrações</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <div class="logo-icon-wrap">
+            <i data-lucide="gauge" class="sidebar-logo-icon"></i>
+          </div>
+          <div>
+            <span class="sidebar-brand">Telemetria</span>
+            <span class="sidebar-brand-sub">Gestão de Frotas</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <span class="nav-group-label">MENU PRINCIPAL</span>
+
+        <a href="#" class="nav-item disabled" id="navRelatorio">
+          <i data-lucide="file-bar-chart" class="nav-icon"></i>
+          <span>Relatório</span>
+          <span class="nav-badge" id="navBadge" style="display:none"></span>
+        </a>
+
+        <span class="nav-group-label" style="margin-top:1rem">CONFIGURAÇÕES</span>
+
+        <a href="#" class="nav-item" id="navGrupos">
+          <i data-lucide="settings" class="nav-icon"></i>
+          <span>Gerenciar Grupos</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>Sistema de Telemetria</span>
+        <span>© 2026 Comelli Transportes</span>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main-content">
+      <!-- TOP BAR -->
+      <header class="topbar">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Menu">
+          <i data-lucide="panel-left"></i>
+        </button>
+        <div class="topbar-title">
+          <h1 id="pageTitle">Carregar Arquivo</h1>
+          <p id="pageSubtitle">Selecione a planilha de infrações de velocidade</p>
+        </div>
+        <div class="topbar-actions" id="topbarActions">
+          <label class="btn btn-ghost" for="fileInput" style="cursor:pointer">
+            <i data-lucide="upload"></i>
+            <span>Carregar Arquivo</span>
+          </label>
+          <select class="group-select hidden" id="groupSelect">
+            <option value="__all">Todos os Grupos</option>
+          </select>
+          <button class="btn btn-outline hidden" id="btnGroupBy">
+            <i data-lucide="layers"></i>
+            <span>Agrupar</span>
+          </button>
+          <button class="btn btn-outline hidden" id="btnPrint">
+            <i data-lucide="printer"></i>
+            <span>Imprimir</span>
+          </button>
+          <button class="btn btn-primary hidden" id="btnPdf">
+            <i data-lucide="download"></i>
+            <span>Exportar PDF</span>
+          </button>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+        </div>
+      </header>
+
+      <!-- PAGE: UPLOAD (initial landing) -->
+      <div class="page-body" id="uploadSection">
+        <div class="upload-area">
+          <div class="upload-card" id="dropZone">
+            <div class="upload-icon-ring">
+              <div class="upload-icon-circle">
+                <i data-lucide="file-spreadsheet" class="upload-main-icon"></i>
+              </div>
+            </div>
+            <h2>Carregar Planilha</h2>
+            <p class="upload-desc">Arraste e solte seu arquivo <code>.xlsx</code> aqui, ou clique para selecionar</p>
+            <label class="btn btn-primary btn-lg" for="fileInput">
+              <i data-lucide="upload"></i>
+              <span>Selecionar Arquivo</span>
+            </label>
+            <p class="file-name" id="fileName"></p>
+            <div class="upload-hint">
+              <i data-lucide="info" class="hint-icon"></i>
+              <span>Formato aceito: <strong>.xlsx</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: REPORT -->
+      <div class="page-body hidden" id="reportSection">
+        <div class="report-content" id="reportContent"></div>
+      </div>
+
+      <!-- PAGE: GERENCIAR GRUPOS -->
+      <div class="page-body hidden" id="gruposSection">
+        <div class="grupos-page">
+          <div class="section-card">
+            <div class="section-card-header">
+              <div>
+                <div class="section-card-title">
+                  <i data-lucide="settings"></i>
+                  <span>Gerenciar Grupos de Veículos</span>
+                </div>
+                <div class="section-card-subtitle">Edite o grupo de cada placa diretamente no banco de dados</div>
+              </div>
+              <div class="grupos-header-actions">
+                <input type="text" class="grupos-search" id="gruposSearch" placeholder="Buscar placa..." />
+                <button class="btn btn-primary btn-sm" id="btnAddPlaca">
+                  <i data-lucide="plus"></i>
+                  <span>Adicionar</span>
+                </button>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="data-table" id="gruposTable">
+                <thead>
+                  <tr>
+                    <th>Placa</th>
+                    <th>Grupo</th>
+                    <th>Modelo</th>
+                    <th style="width:120px;text-align:center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="gruposTableBody">
+                  <tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--muted-foreground)">Carregando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
