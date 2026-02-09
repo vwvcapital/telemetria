@@ -24,10 +24,11 @@ jobs:
 
       - name: Inject Supabase config
         run: |
-          cat > js/config.js << 'EOF'
-          const SUPABASE_URL = '${{ secrets.SUPABASE_URL }}';
-          const SUPABASE_KEY = '${{ secrets.SUPABASE_KEY }}';
+          cat > js/config.js <<'EOF'
+          const SUPABASE_URL = "${{ secrets.SUPABASE_URL }}";
+          const SUPABASE_KEY = "${{ secrets.SUPABASE_KEY }}";
           EOF
+          sed -i 's/^          //' js/config.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
