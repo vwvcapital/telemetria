@@ -32,6 +32,10 @@ const gruposSection = document.getElementById('gruposSection');
 const gruposTableBody = document.getElementById('gruposTableBody');
 const gruposSearch = document.getElementById('gruposSearch');
 const btnAddPlaca = document.getElementById('btnAddPlaca');
+const navCategorias = document.getElementById('navCategorias');
+const categoriasSection = document.getElementById('categoriasSection');
+const categoriasBoard = document.getElementById('categoriasBoard');
+const btnAddCategoria = document.getElementById('btnAddCategoria');
 
 // ===== Initialize Lucide icons + Load groups =====
 document.addEventListener('DOMContentLoaded', () => {
@@ -126,11 +130,13 @@ function hideAllPages() {
   uploadSection.classList.add('hidden');
   reportSection.classList.add('hidden');
   gruposSection.classList.add('hidden');
+  categoriasSection.classList.add('hidden');
   // hide report-only buttons
   reportButtons.forEach(el => el.classList.add('hidden'));
   // deactivate all nav
   navRelatorio.classList.remove('active');
   navGrupos.classList.remove('active');
+  navCategorias.classList.remove('active');
   sidebar.classList.remove('open');
   sidebarOverlay.classList.remove('active');
 }
@@ -169,6 +175,20 @@ navRelatorio.addEventListener('click', (e) => {
 navGrupos.addEventListener('click', (e) => {
   e.preventDefault();
   switchToGrupos();
+});
+
+function switchToCategorias() {
+  hideAllPages();
+  categoriasSection.classList.remove('hidden');
+  pageTitle.textContent = 'Categorias';
+  pageSubtitle.textContent = 'Organize os grupos arrastando entre categorias';
+  navCategorias.classList.add('active');
+  renderCategoriasBoard();
+}
+
+navCategorias.addEventListener('click', (e) => {
+  e.preventDefault();
+  switchToCategorias();
 });
 
 // ===== Drag and Drop =====
@@ -801,3 +821,361 @@ async function reloadGrupos() {
 gruposSearch.addEventListener('input', () => {
   renderGruposTable(gruposSearch.value);
 });
+
+// ===== CATEGORIAS MANAGEMENT =====
+let allCategorias = [];  // [{nome: 'Carga Seca', grupos: ['Graneleiro','Rodo Caçamba',...]}, ...]
+let sortableInstances = [];
+
+// Load categorias from supabase "categorias" table
+async function loadCategorias() {
+  try {
+    const { data, error } = await supabaseClient.from('categorias').select('*').order('nome');
+    if (error) { console.warn('Supabase categorias error:', error); return; }
+    allCategorias = data || [];
+  } catch (err) {
+    console.warn('Erro ao carregar categorias:', err);
+  }
+}
+
+// Build a map: grupo → categoria from supabase grupos table ("categoria" column)
+function getGroupCategoryMap() {
+  const map = {};
+  allGruposData.forEach(row => {
+    if (row.grupo) {
+      map[row.grupo] = row.categoria || null;
+    }
+  });
+  return map;
+}
+
+// Get all unique group names
+function getAllGroupNames() {
+  const set = new Set();
+  allGruposData.forEach(row => {
+    if (row.grupo) set.add(row.grupo);
+  });
+  return Array.from(set).sort();
+}
+
+// Count vehicles per group
+function getGroupVehicleCounts() {
+  const counts = {};
+  allGruposData.forEach(row => {
+    if (row.grupo) {
+      counts[row.grupo] = (counts[row.grupo] || 0) + 1;
+    }
+  });
+  return counts;
+}
+
+// Render the categorias board with drag-and-drop
+async function renderCategoriasBoard() {
+  // Ensure data is loaded
+  await loadCategorias();
+
+  // Destroy previous sortable instances
+  sortableInstances.forEach(s => s.destroy());
+  sortableInstances = [];
+
+  const groupCatMap = getGroupCategoryMap();
+  const allGroups = getAllGroupNames();
+  const vehicleCounts = getGroupVehicleCounts();
+
+  // Build category → groups mapping
+  const catGroups = {};
+  allCategorias.forEach(cat => {
+    catGroups[cat.nome] = [];
+  });
+
+  const assigned = new Set();
+  allGroups.forEach(grupo => {
+    const cat = groupCatMap[grupo];
+    if (cat && catGroups[cat] !== undefined) {
+      catGroups[cat].push(grupo);
+      assigned.add(grupo);
+    }
+  });
+
+  // Groups without a category
+  const unassigned = allGroups.filter(g => !assigned.has(g));
+
+  // Build HTML
+  let html = '';
+
+  // Render each category column
+  allCategorias.forEach(cat => {
+    const grupos = catGroups[cat.nome] || [];
+    html += buildCategoryColumn(cat.nome, grupos, vehicleCounts, false);
+  });
+
+  // "Sem Categoria" column for unassigned groups
+  html += buildCategoryColumn('Sem Categoria', unassigned, vehicleCounts, true);
+
+  categoriasBoard.innerHTML = html;
+  lucide.createIcons();
+
+  // Initialize SortableJS on each category body
+  const bodies = categoriasBoard.querySelectorAll('.categoria-body');
+  bodies.forEach(body => {
+    const instance = new Sortable(body, {
+      group: 'categorias',
+      animation: 200,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      onEnd: handleDragEnd
+    });
+    sortableInstances.push(instance);
+  });
+
+  updateAllColumnCounts();
+}
+
+function buildCategoryColumn(name, grupos, vehicleCounts, isSemCategoria) {
+  const chipsHTML = grupos.length > 0
+    ? grupos.map(g => `
+      <div class="grupo-chip" data-grupo="${escapeAttr(g)}">
+        <i data-lucide="grip-vertical" class="chip-icon"></i>
+        <span class="chip-label">${escapeHTML(g)}</span>
+        <span class="chip-count">${vehicleCounts[g] || 0} veíc.</span>
+      </div>
+    `).join('')
+    : `<div class="categoria-empty">Arraste grupos para cá</div>`;
+
+  const extraClass = isSemCategoria ? ' sem-categoria' : '';
+  const headerActions = isSemCategoria ? '' : `
+    <div class="categoria-header-actions">
+      <button class="btn-icon" title="Renomear" onclick="startRenameCategoria('${escapeAttr(name)}')">
+        <i data-lucide="pencil"></i>
+      </button>
+      <button class="btn-icon delete" title="Excluir categoria" onclick="deleteCategoria('${escapeAttr(name)}')">
+        <i data-lucide="trash-2"></i>
+      </button>
+    </div>
+  `;
+
+  return `
+    <div class="categoria-column${extraClass}" data-categoria="${escapeAttr(name)}">
+      <div class="categoria-header">
+        <div class="categoria-header-left">
+          <i data-lucide="${isSemCategoria ? 'inbox' : 'folder'}"></i>
+          <span class="categoria-name">${escapeHTML(name)}</span>
+          <span class="categoria-count">0</span>
+        </div>
+        ${headerActions}
+      </div>
+      <div class="categoria-body" data-categoria="${escapeAttr(name)}">
+        ${chipsHTML}
+      </div>
+    </div>
+  `;
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function updateAllColumnCounts() {
+  const columns = categoriasBoard.querySelectorAll('.categoria-column');
+  columns.forEach(col => {
+    const count = col.querySelectorAll('.grupo-chip').length;
+    const badge = col.querySelector('.categoria-count');
+    if (badge) badge.textContent = count;
+
+    // Show/hide empty message
+    const body = col.querySelector('.categoria-body');
+    const emptyMsg = body.querySelector('.categoria-empty');
+    if (count === 0 && !emptyMsg) {
+      body.innerHTML = '<div class="categoria-empty">Arraste grupos para cá</div>';
+    } else if (count > 0 && emptyMsg) {
+      emptyMsg.remove();
+    }
+  });
+}
+
+// Handle drag end — update database
+async function handleDragEnd(evt) {
+  const grupoName = evt.item.dataset.grupo;
+  const targetCategoria = evt.to.dataset.categoria;
+
+  // Remove empty messages from involved columns
+  [evt.from, evt.to].forEach(el => {
+    const empty = el.querySelector('.categoria-empty');
+    if (empty) empty.remove();
+  });
+
+  updateAllColumnCounts();
+
+  const newCat = targetCategoria === 'Sem Categoria' ? null : targetCategoria;
+
+  try {
+    // Update all rows in "grupos" table that have this grupo
+    const { error } = await supabaseClient
+      .from('grupos')
+      .update({ categoria: newCat })
+      .eq('grupo', grupoName);
+
+    if (error) throw error;
+
+    // Update local data
+    allGruposData.forEach(row => {
+      if (row.grupo === grupoName) {
+        row.categoria = newCat;
+      }
+    });
+
+    showToast(`"${grupoName}" movido para ${newCat || 'Sem Categoria'}`);
+  } catch (err) {
+    console.error(err);
+    showToast('Erro ao atualizar categoria: ' + err.message, true);
+    // Re-render to revert
+    renderCategoriasBoard();
+  }
+}
+
+// Add new category
+btnAddCategoria.addEventListener('click', () => {
+  showCategoriaModal();
+});
+
+function showCategoriaModal(currentName = '') {
+  // Remove existing modal if any
+  const existing = document.querySelector('.modal-overlay');
+  if (existing) existing.remove();
+
+  const isRename = !!currentName;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <div class="modal-title">${isRename ? 'Renomear Categoria' : 'Nova Categoria'}</div>
+      <input class="modal-input" id="modalCatInput" placeholder="Nome da categoria" value="${escapeHTML(currentName)}" />
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="modalCatCancel">Cancelar</button>
+        <button class="btn btn-primary" id="modalCatSave">${isRename ? 'Renomear' : 'Criar'}</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const input = document.getElementById('modalCatInput');
+  const btnSave = document.getElementById('modalCatSave');
+  const btnCancel = document.getElementById('modalCatCancel');
+
+  input.focus();
+  input.select();
+
+  const closeModal = () => overlay.remove();
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeModal();
+  });
+
+  btnCancel.addEventListener('click', closeModal);
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btnSave.click();
+    if (e.key === 'Escape') closeModal();
+  });
+
+  btnSave.addEventListener('click', async () => {
+    const nome = input.value.trim();
+    if (!nome) {
+      showToast('O nome da categoria é obrigatório', true);
+      return;
+    }
+
+    try {
+      if (isRename) {
+        // Rename: update categorias table
+        const { error: catErr } = await supabaseClient
+          .from('categorias')
+          .update({ nome })
+          .eq('nome', currentName);
+        if (catErr) throw catErr;
+
+        // Update all grupos that reference this category
+        const { error: grpErr } = await supabaseClient
+          .from('grupos')
+          .update({ categoria: nome })
+          .eq('categoria', currentName);
+        if (grpErr) throw grpErr;
+
+        // Update local data
+        allGruposData.forEach(row => {
+          if (row.categoria === currentName) row.categoria = nome;
+        });
+
+        showToast(`Categoria renomeada para "${nome}"`);
+      } else {
+        // Check duplicate
+        if (allCategorias.some(c => c.nome.toLowerCase() === nome.toLowerCase())) {
+          showToast('Essa categoria já existe', true);
+          return;
+        }
+
+        const { error } = await supabaseClient
+          .from('categorias')
+          .insert({ nome });
+        if (error) throw error;
+
+        showToast(`Categoria "${nome}" criada!`);
+      }
+
+      closeModal();
+      renderCategoriasBoard();
+    } catch (err) {
+      console.error(err);
+      showToast('Erro: ' + err.message, true);
+    }
+  });
+}
+
+window.startRenameCategoria = function(nome) {
+  showCategoriaModal(nome);
+};
+
+window.deleteCategoria = async function(nome) {
+  const col = categoriasBoard.querySelector(`.categoria-column[data-categoria="${CSS.escape(nome)}"]`);
+  const groupCount = col ? col.querySelectorAll('.grupo-chip').length : 0;
+
+  const msg = groupCount > 0
+    ? `Deseja excluir a categoria "${nome}"? Os ${groupCount} grupo(s) serão movidos para "Sem Categoria".`
+    : `Deseja excluir a categoria "${nome}"?`;
+
+  if (!confirm(msg)) return;
+
+  try {
+    // Remove categoria from grupos
+    const { error: grpErr } = await supabaseClient
+      .from('grupos')
+      .update({ categoria: null })
+      .eq('categoria', nome);
+    if (grpErr) throw grpErr;
+
+    // Delete from categorias table
+    const { error: catErr } = await supabaseClient
+      .from('categorias')
+      .delete()
+      .eq('nome', nome);
+    if (catErr) throw catErr;
+
+    // Update local data
+    allGruposData.forEach(row => {
+      if (row.categoria === nome) row.categoria = null;
+    });
+
+    showToast(`Categoria "${nome}" excluída!`);
+    renderCategoriasBoard();
+  } catch (err) {
+    console.error(err);
+    showToast('Erro ao excluir: ' + err.message, true);
+  }
+};

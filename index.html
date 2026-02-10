@@ -12,6 +12,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 </head>
 <body>
   <div class="layout">
@@ -43,6 +44,11 @@
         <a href="#" class="nav-item" id="navGrupos">
           <i data-lucide="settings" class="nav-icon"></i>
           <span>Gerenciar Grupos</span>
+        </a>
+
+        <a href="#" class="nav-item" id="navCategorias">
+          <i data-lucide="layout-grid" class="nav-icon"></i>
+          <span>Categorias</span>
         </a>
       </nav>
 
@@ -154,6 +160,32 @@
           </div>
         </div>
       </div>
+      <!-- PAGE: GERENCIAR CATEGORIAS -->
+      <div class="page-body hidden" id="categoriasSection">
+        <div class="categorias-page">
+          <div class="section-card">
+            <div class="section-card-header">
+              <div>
+                <div class="section-card-title">
+                  <i data-lucide="layout-grid"></i>
+                  <span>Gerenciar Categorias</span>
+                </div>
+                <div class="section-card-subtitle">Arraste os grupos entre as categorias para organizar</div>
+              </div>
+              <div class="categorias-header-actions">
+                <button class="btn btn-primary btn-sm" id="btnAddCategoria">
+                  <i data-lucide="plus"></i>
+                  <span>Nova Categoria</span>
+                </button>
+              </div>
+            </div>
+            <div class="categorias-board" id="categoriasBoard">
+              <div class="categorias-loading">Carregando categorias...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
