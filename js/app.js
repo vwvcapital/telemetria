@@ -72,16 +72,8 @@ async function loadGroups() {
     GROUP_MAP = map;
     GROUP_LIST = Array.from(groupSet).sort();
 
-    // Populate select
-    if (groupSelect) {
-      groupSelect.innerHTML = '<option value="__all">Todos os Grupos</option>';
-      GROUP_LIST.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g;
-        opt.textContent = g;
-        groupSelect.appendChild(opt);
-      });
-    }
+    // Populate select with categories and groups
+    populateFilterSelect();
 
     console.log(`Grupos carregados: ${GROUP_LIST.length} grupos, ${Object.keys(map).length} placas mapeadas`);
   } catch (err) {
@@ -94,6 +86,54 @@ function getGroupForPlate(plateStr) {
   // Remove trailing suffix like -2, -1, etc. (e.g. "SCD1G70-2" → "SCD1G70")
   const base = String(plateStr).replace(/-\d+$/, '').toUpperCase().trim();
   return GROUP_MAP[base] || 'Sem Grupo';
+}
+
+// ===== Populate filter select with categories + groups =====
+function populateFilterSelect() {
+  if (!groupSelect) return;
+
+  groupSelect.innerHTML = '<option value="__all">Todos</option>';
+
+  // Build category → groups map from allGruposData
+  const catMap = {}; // categoria → Set of grupos
+  const assignedGroups = new Set();
+
+  allGruposData.forEach(row => {
+    if (row.grupo && row.categoria) {
+      if (!catMap[row.categoria]) catMap[row.categoria] = new Set();
+      catMap[row.categoria].add(row.grupo);
+      assignedGroups.add(row.grupo);
+    }
+  });
+
+  const catNames = Object.keys(catMap).sort();
+  const unassignedGroups = GROUP_LIST.filter(g => !assignedGroups.has(g));
+
+  // Add categories as optgroup with a selectable category option + individual groups
+  if (catNames.length > 0) {
+    const catOptGroup = document.createElement('optgroup');
+    catOptGroup.label = '📂 Categorias';
+    catNames.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = 'cat:' + cat;
+      opt.textContent = cat + ' (' + catMap[cat].size + ' grupos)';
+      catOptGroup.appendChild(opt);
+    });
+    groupSelect.appendChild(catOptGroup);
+  }
+
+  // Add all individual groups
+  if (GROUP_LIST.length > 0) {
+    const grpOptGroup = document.createElement('optgroup');
+    grpOptGroup.label = '🚛 Grupos';
+    GROUP_LIST.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      grpOptGroup.appendChild(opt);
+    });
+    groupSelect.appendChild(grpOptGroup);
+  }
 }
 
 // ===== Sidebar toggle (mobile) =====
@@ -364,10 +404,23 @@ function injectWatermarks() {
 
 // ===== Render report =====
 function renderReport(vehicles, totalRows, uploadedFileName) {
-  // Apply group filter
+  // Apply filter (group or category)
   let filtered = vehicles;
+  let filterLabel = '';
   if (GROUP_FILTER && GROUP_FILTER !== '__all') {
-    filtered = vehicles.filter(v => v.grupo === GROUP_FILTER);
+    if (GROUP_FILTER.startsWith('cat:')) {
+      // Filter by category — show all groups within this category
+      const catName = GROUP_FILTER.slice(4);
+      const gruposInCat = new Set();
+      allGruposData.forEach(row => {
+        if (row.categoria === catName && row.grupo) gruposInCat.add(row.grupo);
+      });
+      filtered = vehicles.filter(v => gruposInCat.has(v.grupo));
+      filterLabel = ` · Categoria: <strong>${catName}</strong>`;
+    } else {
+      filtered = vehicles.filter(v => v.grupo === GROUP_FILTER);
+      filterLabel = ` · Grupo: <strong>${GROUP_FILTER}</strong>`;
+    }
   }
 
   const totalInfracoes = filtered.reduce((s, v) => s + v.totalInfracoes, 0);
@@ -515,8 +568,6 @@ function renderReport(vehicles, totalRows, uploadedFileName) {
       tableHTML += '</div>';
     }
   }
-
-  const filterLabel = GROUP_FILTER !== '__all' ? ` · Grupo: <strong>${GROUP_FILTER}</strong>` : '';
 
   reportContent.innerHTML = `
     <div class="report-page">

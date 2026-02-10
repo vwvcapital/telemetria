@@ -813,6 +813,20 @@ body {
   box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
 }
 
+.group-select optgroup {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+  padding: 0.25rem 0;
+}
+
+.group-select option {
+  font-weight: 400;
+  color: var(--foreground);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+}
+
 /* ========================================
    GROUP BADGE (in table)
    ======================================== */
