@@ -7,6 +7,7 @@ let GROUP_MAP = {};      // placa (uppercase, no hyphen) → group name
 let GROUP_LIST = [];     // sorted unique group names
 let GROUP_FILTER = '__all';
 let GROUP_BY = 'none'; // 'none' | 'grupo' | 'categoria'
+let allGruposData = []; // full data from supabase for the management page
 
 // ===== DOM Elements =====
 const fileInput = document.getElementById('fileInput');
@@ -112,20 +113,21 @@ groupSelect.addEventListener('change', () => {
   if (currentVehicles) renderReport(currentVehicles, currentTotalRows, currentFileName);
 });
 
-segGroupMode.querySelectorAll('.seg-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    segGroupMode.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    GROUP_BY = btn.dataset.mode;
-    if (currentVehicles) renderReport(currentVehicles, currentTotalRows, currentFileName);
+if (segGroupMode) {
+  segGroupMode.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      segGroupMode.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      GROUP_BY = btn.dataset.mode;
+      if (currentVehicles) renderReport(currentVehicles, currentTotalRows, currentFileName);
+    });
   });
-});
+}
 
 // ===== Navigation =====
 let currentVehicles = null;
 let currentTotalRows = 0;
 let currentFileName = '';
-let allGruposData = []; // full data from supabase for the management page
 
 const reportButtons = [groupSelect, segGroupMode, btnPrint, btnPdf];
 
