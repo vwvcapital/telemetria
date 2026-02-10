@@ -744,6 +744,45 @@ body {
 }
 
 /* ========================================
+   SEGMENTED CONTROL (topbar)
+   ======================================== */
+.seg-control {
+  display: inline-flex;
+  align-items: center;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.seg-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  background: transparent;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.seg-btn:hover {
+  color: var(--foreground);
+}
+
+.seg-btn.active {
+  background: var(--card);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: var(--shadow-xs);
+}
+
+/* ========================================
    GROUP SELECT (topbar)
    ======================================== */
 .group-select {
@@ -810,6 +849,39 @@ body {
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--muted-foreground);
+}
+
+.group-heading-nested {
+  margin-left: 1.25rem;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ---- Category heading (report) ---- */
+.category-heading {
+  background: linear-gradient(135deg, var(--primary), #1d4ed8);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1.25rem;
+  margin: 1.5rem 0 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary-foreground);
+}
+
+.category-heading i {
+  width: 18px;
+  height: 18px;
+}
+
+.category-heading .category-stats {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* ========================================

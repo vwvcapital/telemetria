@@ -6,7 +6,7 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let GROUP_MAP = {};      // placa (uppercase, no hyphen) → group name
 let GROUP_LIST = [];     // sorted unique group names
 let GROUP_FILTER = '__all';
-let GROUP_BY = false;
+let GROUP_BY = 'none'; // 'none' | 'grupo' | 'categoria'
 
 // ===== DOM Elements =====
 const fileInput = document.getElementById('fileInput');
@@ -27,7 +27,7 @@ const navRelatorio = document.getElementById('navRelatorio');
 const navBadge = document.getElementById('navBadge');
 const navGrupos = document.getElementById('navGrupos');
 const groupSelect = document.getElementById('groupSelect');
-const btnGroupBy = document.getElementById('btnGroupBy');
+const segGroupMode = document.getElementById('segGroupMode');
 const gruposSection = document.getElementById('gruposSection');
 const gruposTableBody = document.getElementById('gruposTableBody');
 const gruposSearch = document.getElementById('gruposSearch');
@@ -112,10 +112,13 @@ groupSelect.addEventListener('change', () => {
   if (currentVehicles) renderReport(currentVehicles, currentTotalRows, currentFileName);
 });
 
-btnGroupBy.addEventListener('click', () => {
-  GROUP_BY = !GROUP_BY;
-  btnGroupBy.querySelector('span').textContent = GROUP_BY ? 'Desagrupar' : 'Agrupar';
-  if (currentVehicles) renderReport(currentVehicles, currentTotalRows, currentFileName);
+segGroupMode.querySelectorAll('.seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    segGroupMode.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    GROUP_BY = btn.dataset.mode;
+    if (currentVehicles) renderReport(currentVehicles, currentTotalRows, currentFileName);
+  });
 });
 
 // ===== Navigation =====
@@ -124,7 +127,7 @@ let currentTotalRows = 0;
 let currentFileName = '';
 let allGruposData = []; // full data from supabase for the management page
 
-const reportButtons = [groupSelect, btnGroupBy, btnPrint, btnPdf];
+const reportButtons = [groupSelect, segGroupMode, btnPrint, btnPdf];
 
 function hideAllPages() {
   uploadSection.classList.add('hidden');
@@ -386,8 +389,68 @@ function renderReport(vehicles, totalRows, uploadedFileName) {
   // Build table content depending on group-by mode
   let tableHTML = '';
 
-  if (GROUP_BY) {
-    // Group by grupo
+  if (GROUP_BY === 'categoria') {
+    // Group by categoria → grupo
+    const catGroupMap = {}; // categoria → { grupo → [vehicles] }
+    filtered.forEach(v => {
+      const grupo = v.grupo || 'Sem Grupo';
+      // Find categoria for this grupo from allGruposData
+      const row = allGruposData.find(r => r.grupo === grupo);
+      const cat = (row && row.categoria) || 'Sem Categoria';
+      if (!catGroupMap[cat]) catGroupMap[cat] = {};
+      if (!catGroupMap[cat][grupo]) catGroupMap[cat][grupo] = [];
+      catGroupMap[cat][grupo].push(v);
+    });
+
+    // Sort: named categories first, 'Sem Categoria' last
+    const catNames = Object.keys(catGroupMap).sort((a, b) => {
+      if (a === 'Sem Categoria') return 1;
+      if (b === 'Sem Categoria') return -1;
+      return a.localeCompare(b);
+    });
+
+    let globalIndex = 0;
+
+    catNames.forEach(catName => {
+      const gruposInCat = catGroupMap[catName];
+      const allVehiclesInCat = Object.values(gruposInCat).flat();
+      const catInfracoes = allVehiclesInCat.reduce((s, v) => s + v.totalInfracoes, 0);
+      const grupoCount = Object.keys(gruposInCat).length;
+
+      tableHTML += `
+        <div class="category-heading">
+          <i data-lucide="${catName === 'Sem Categoria' ? 'inbox' : 'layout-grid'}"></i>
+          <span>${catName}</span>
+          <span class="category-stats">${grupoCount} grupo${grupoCount > 1 ? 's' : ''} · ${allVehiclesInCat.length} veículo${allVehiclesInCat.length > 1 ? 's' : ''} · ${catInfracoes} infração${catInfracoes !== 1 ? 'ões' : ''}</span>
+        </div>
+      `;
+
+      const sortedGrupos = Object.keys(gruposInCat).sort();
+      sortedGrupos.forEach(grupoName => {
+        const groupVehicles = gruposInCat[grupoName];
+        const groupInfracoes = groupVehicles.reduce((s, v) => s + v.totalInfracoes, 0);
+
+        tableHTML += `
+          <div class="group-heading group-heading-nested">
+            <i data-lucide="folder"></i>
+            <span>${grupoName}</span>
+            <span class="group-count">${groupVehicles.length} veíc. · ${groupInfracoes} infração${groupInfracoes !== 1 ? 'ões' : ''}</span>
+          </div>
+        `;
+
+        tableHTML += buildTableSection(
+          grupoName,
+          groupVehicles.length + ' veículo' + (groupVehicles.length > 1 ? 's' : '') + ' neste grupo',
+          'users',
+          groupVehicles,
+          globalIndex
+        );
+
+        globalIndex += groupVehicles.length;
+      });
+    });
+  } else if (GROUP_BY === 'grupo') {
+    // Group by grupo (flat)
     const groups = {};
     filtered.forEach(v => {
       const g = v.grupo || 'Sem Grupo';

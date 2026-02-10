@@ -77,10 +77,11 @@
           <select class="group-select hidden" id="groupSelect">
             <option value="__all">Todos os Grupos</option>
           </select>
-          <button class="btn btn-outline hidden" id="btnGroupBy">
-            <i data-lucide="layers"></i>
-            <span>Agrupar</span>
-          </button>
+          <div class="seg-control hidden" id="segGroupMode">
+            <button class="seg-btn active" data-mode="none">Todos</button>
+            <button class="seg-btn" data-mode="categoria">Categorias</button>
+            <button class="seg-btn" data-mode="grupo">Grupos</button>
+          </div>
           <button class="btn btn-outline hidden" id="btnPrint">
             <i data-lucide="printer"></i>
             <span>Imprimir</span>
